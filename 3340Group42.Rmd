@@ -1,0 +1,178 @@
+---
+title: "Regression and Analysis of Variance STAT 3340 / MATH 3340"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
+```
+
+
+
+# Data Description
+
+
+
+```{r}
+dat<-read.csv("~/Desktop/3340 Final project/Life Expectancy Data.csv", header=TRUE)
+dim(dat)
+```
+
+
+```{r}
+# total na
+sum(is.na(dat))
+
+# numbers of na in each columns
+
+apply(dat, 2, function(x){ 
+  return (sum(is.na(x)))})
+```
+
+
+```{r}
+dat_new<-na.omit(dat)
+dim(dat_new)
+```
+
+
+
+## the distribution of Life.expectancy 
+
+
+
+
+```{r,fig.show='hold' ,out.width='40%', fig.align='center', fig.cap='1.1 Life.expectancy distribution box plot'}
+library(ggplot2)
+ggplot(data = dat_new,aes(x=Status,y=Life.expectancy))+
+  geom_boxplot(aes(fill = Status))
+```
+
+
+
+```{r,fig.show='hold' ,out.width='40%', fig.align='center', fig.cap='1.2 Life.expectancy distribution hist'}
+
+ggplot(data = dat_new,aes(x=Life.expectancy))+geom_histogram()
+
+```
+
+
+
+```{r}
+aggregate(dat_new$Life.expectancy,list(dat_new$Year),mean)
+```
+
+
+
+## Correlation between variables
+
+
+
+```{r}
+cor(dat_new[,4:8])
+```
+
+```{r,fig.show='hold' ,out.width='40%', fig.align='center', fig.cap='1.3 Correlation between variables'}
+pairs(dat_new[,4:8])
+```
+
+
+
+# Methods
+
+## full model
+
+
+
+
+```{r}
+
+dat_new$Status<-as.factor(dat_new$Status)
+
+lm_full<-lm(Life.expectancy~.,data = dat_new[,-1])
+summary(lm_full)
+```
+
+
+## Variable screening
+
+
+
+```{r,fig.show='hold' ,out.width='40%', fig.align='center', fig.cap='2.1 cp vs size'}
+library(leaps)
+
+fit2 <- regsubsets(Life.expectancy~., nvmax=15,data=dat_new[,-1],method = "backward")
+
+plot(summary(fit2)$cp, pch=16,type='b',main='cp vs size')
+
+```
+
+
+
+```{r}
+coef(fit2,7)
+```
+
+
+
+## Modification of the model 
+
+```{r}
+lm_final<-lm(Life.expectancy~Adult.Mortality+infant.deaths+percentage.expenditure+
+               under.five.deaths+HIV.AIDS+Income.composition.of.resources+Schooling,data=dat_new)
+
+plot(lm_final)
+```
+
+
+## addition  data point
+
+
+
+```{r}
+dat_incomplete<-dat[!complete.cases(dat),]
+
+head(na.omit(dat_incomplete[,c("Adult.Mortality","infant.deaths","percentage.expenditure",
+               "under.five.deaths","HIV.AIDS","Income.composition.of.resources","Schooling",'Life.expectancy')]))
+
+
+
+## additional data point
+
+add_data<-na.omit(dat_incomplete[,c("Adult.Mortality","infant.deaths","percentage.expenditure",
+               "under.five.deaths","HIV.AIDS","Income.composition.of.resources","Schooling",'Life.expectancy')])[1,]
+
+# Model prediction
+
+# sd of Life.expectancy
+sd(dat$Life.expectancy,na.rm = T)
+
+
+predict(lm_final,newdata = add_data)
+
+add_data$Life.expectancy
+
+
+```
+
+
+## Multicollinearity analysis
+
+```{r}
+library(car)
+vif(lm_final)
+```
+
+
+# Results
+
+```{r}
+lm_final<-lm(Life.expectancy~Adult.Mortality+infant.deaths+percentage.expenditure+
+               under.five.deaths+HIV.AIDS+Income.composition.of.resources+Schooling,data=dat_new)
+
+anova(lm_final)
+summary(lm_final)
+```
