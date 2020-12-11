@@ -1,0 +1,241 @@
+---
+title: "Regression and Analysis of Variance STAT 3340 / MATH 3340"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
+```
+
+
+
+# Data Description
+A additional data point is added in later section which is used to validate our model. Because modeling is built on data with no missing values, we will select a piece of data from the unused data set for model verification.
+
+
+```{r}
+dat<-read.csv("~/Desktop/3340 Final project/Life Expectancy Data.csv", header=TRUE)
+dim(dat)
+```
+
+A total of 2938 pieces of data with 22 data dimensions.
+
+Identification of missing values.
+
+```{r}
+# total na
+sum(is.na(dat))
+
+# numbers of na in each columns
+
+apply(dat, 2, function(x){ 
+  return (sum(is.na(x)))})
+```
+The number of missing variables in all data is 2563, and the number of missing values in each column is displayed.Delete rows containing missing values.
+
+```{r}
+dat_new<-na.omit(dat)
+dim(dat_new)
+```
+
+The remaining data volume after deleting the missing values is 1649 rows.
+
+## the distribution of Life.expectancy 
+
+Show the distribution of Life.expectancy in different countries (developing or non-developing countries)
+
+
+```{r,fig.show='hold' ,out.width='40%', fig.align='center', fig.cap='1.1 Life.expectancy distribution box plot'}
+library(ggplot2)
+ggplot(data = dat_new,aes(x=Status,y=Life.expectancy))+
+  geom_boxplot(aes(fill = Status))
+```
+It can be seen from the box plot that the Life.expectancy of developed countries is significantly higher than that of developing countries, and the variance is smaller.
+
+
+```{r,fig.show='hold' ,out.width='40%', fig.align='center', fig.cap='1.2 Life.expectancy distribution hist'}
+
+ggplot(data = dat_new,aes(x=Life.expectancy))+geom_histogram()
+
+```
+From the distribution histogram of Life.expectancy, it can be seen that Life.expectancy is mainly concentrated in the age range of 70-80, with a slight left skew distribution.
+
+
+Show the average value of Life.expectancy in different years.
+
+
+```{r}
+aggregate(dat_new$Life.expectancy,list(dat_new$Year),mean)
+```
+With the improvement of medical and health conditions, we can see that the average value of Life.expectancy has shown an increasing trend year by year.
+
+
+## Correlation between variables
+
+Choose 5 variables to perform correlation analysis with Life.expectancy, display the correlation coefficient, and visualize it.
+
+```{r}
+cor(dat_new[,4:8])
+```
+
+```{r,fig.show='hold' ,out.width='40%', fig.align='center', fig.cap='1.3 Correlation between variables'}
+pairs(dat_new[,4:8])
+```
+
+There is a strong negative correlation between Life.expectancy and Adult.Mortality, the correlation coefficient is -0.7025231, and the correlation between Life.expectancy and other variables is very weak.
+
+# Methods
+
+## full model
+
+
+The dependent variable is Life.expectancy, because Life.expectancy has a significant relationship with Status (country type). First, the Status variable is factorized, and then all variables except the country are used as independent variables to build the full model.
+
+```{r}
+
+dat_new$Status<-as.factor(dat_new$Status)
+
+lm_full<-lm(Life.expectancy~.,data = dat_new[,-1])
+summary(lm_full)
+```
+It can be seen that many variables like Polio have not passed the coefficient significance test, and the next step of model optimization is needed.
+
+## Variable screening
+
+According to the  $c_p $ index to optimize the model of the whole subset, the direction is set to "backward", and the minimum cp corresponding to the number of real different variables is shown in the figure below.
+
+```{r,fig.show='hold' ,out.width='40%', fig.align='center', fig.cap='2.1 cp vs size'}
+library(leaps)
+
+fit2 <- regsubsets(Life.expectancy~., nvmax=15,data=dat_new[,-1],method = "backward")
+
+plot(summary(fit2)$cp, pch=16,type='b',main='cp vs size')
+
+```
+
+It can be seen that after the number of variables is 7, as the number of variables increases, the decrease in $c_p $value is very weak. Finally, the number of variables used is 7 and the variable names and coefficients are displayed.
+
+```{r}
+coef(fit2,7)
+```
+
+Finally, seven variables including Adult.Mortality and infant.deaths were selected as independent variables to establish a linear regression model.
+
+## Modification of the model 
+
+```{r}
+lm_final<-lm(Life.expectancy~Adult.Mortality+infant.deaths+percentage.expenditure+
+               under.five.deaths+HIV.AIDS+Income.composition.of.resources+Schooling,data=dat_new)
+
+plot(lm_final)
+```
+
+Most of the scattered points of the norm qq graph are distributed along a 45-degree diagonal. The lower left part of the data has a left skewed distribution, and the upper right part has a licensing distribution, which satisfies the residual normality test as a whole;
+
+
+Residuals vs fitted is a graph for testing the linear relationship between the dependent variable and the independent variable. Since the dependent variable is linearly related to the independent variable, it can be seen that the residuals have no relationship with the fitted values, which is reasonable.
+
+The third graph shows that the standardized residuals have no obvious contraction and expansion trend with the increase of the fitted value, and the residuals basically satisfy the uniformity of variance.
+
+The last picture shows that there are individual strong leverage points, but the cook distance is not very large, which has little effect on the overall and is within an acceptable range.
+
+## addition  data point
+
+
+
+```{r}
+dat_incomplete<-dat[!complete.cases(dat),]
+
+head(na.omit(dat_incomplete[,c("Adult.Mortality","infant.deaths","percentage.expenditure",
+               "under.five.deaths","HIV.AIDS","Income.composition.of.resources","Schooling",'Life.expectancy')]))
+
+
+
+## additional data point
+
+add_data<-na.omit(dat_incomplete[,c("Adult.Mortality","infant.deaths","percentage.expenditure",
+               "under.five.deaths","HIV.AIDS","Income.composition.of.resources","Schooling",'Life.expectancy')])[1,]
+
+# Model prediction
+
+# sd of Life.expectancy
+sd(dat$Life.expectancy,na.rm = T)
+
+
+predict(lm_final,newdata = add_data)
+
+add_data$Life.expectancy
+
+
+```
+
+The Standard deviation of the overall average life span is 9.5238. The actual value of our additional data point is 75.6 and the predicted value is 76.3376, which is enough to show that the model establishment is relatively successful.
+
+## Multicollinearity analysis
+
+```{r}
+library(car)
+vif(lm_final)
+```
+
+According to the criterion of vif<10, the variables infant.deaths and under.five.deaths may have multicollinearity.
+
+
+
+# Results
+
+Show the final model
+
+```{r}
+lm_final<-lm(Life.expectancy~Adult.Mortality+infant.deaths+percentage.expenditure+
+               under.five.deaths+HIV.AIDS+Income.composition.of.resources+Schooling,data=dat_new)
+
+anova(lm_final)
+summary(lm_final)
+```
+(i)
+
+The F value of the overall model test is 1125, p-value: <2.2e-16, and the overall model is significant.
+
+(ii)
+
+Adjusted R-squared is 0.8269, 82.69% of the variance of the dependent variable can be explained by the regression model, and the goodness of fit of the model is relatively high.
+
+(iii)
+
+The p values corresponding to the significance t test of the independent variables were all less than 0.05. All independent variables passed the significance test, and there is a strong linear correlation between the independent variables and the dependent variables.
+
+(iv)
+
+From the point of view of the coefficient, HIV.AIDS has a strong impact on a country’s Life.expectancy, and this impact is negative. Increasing Income.composition.of.resources and Schooling can also effectively increase Life.expectancy.
+
+
+In summary, the establishment of the model is relatively successful.
+
+
+
+# conclusion
+
+Through the overall analysis of this article, descriptive statistics and the establishment of regression models, the following key conclusions are finally obtained:
+
+(i)
+
+The  life expectancy of developed countries is significantly higher than that of developing countries. On the whole, the average life expectancy is increasing year by year.
+
+(ii)
+
+Since it was first reported in the United States in 1981, AIDS has been like a "black ghost" that has swept all corners of the world in just two decades. Former UN Secretary-General Annan once said: "In the past 25 years, AIDS has changed the world. It has killed 25 million people and infected 40 million with HIV.
+The impact of AIDS on average life expectancy is very significant. From the regression model established above, we can see that if other factors remain unchanged, for every unit increase in the HIV/AIDS coefficient, average life expectancy decreases by 0.4438 units on average.
+
+
+(iii)
+
+Income.composition.of.resources is the most basic source of income in a country or region. It is closely related to the production and life of residents. According to the regression model, it can be seen that if other factors remain unchanged, for every unit increase in the Income.composition.of.resources, average life expectancy increases by 10.78 units on average.Therefore, we must attach importance to the use and protection of natural resources.
+
+
+
+
+
